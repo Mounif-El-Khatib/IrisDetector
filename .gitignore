@@ -1,0 +1,12 @@
+__pycache__/
+.buildozer/
+bin/
+kivy-reloader/
+libs/
+venv/
+*.jpeg
+*.jpg
+deploy.sh
+script.sh
+test.py
+script.py
