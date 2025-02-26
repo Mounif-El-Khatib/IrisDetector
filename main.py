@@ -10,8 +10,8 @@ from kivy.clock import Clock
 from PIL import Image
 import cv2
 import os
-import io
 import numpy as np
+import io
 
 
 def file_exists(path):
@@ -25,15 +25,55 @@ class MainWidget(Widget):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    def handle_selection(self, input_stream):
-        if not input_stream:
-            print("No file selected.")
+    def handle_selection(self, input_source):
+        if not input_source:
+            print("No input source.")
             return
         try:
-            image = Image.open(input_stream)
-            frame = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
-            print("Frame shape:", frame.shape)
+            # Debug platform info
+            print(
+                f"Platform: {'Android' if platform == 'android' else 'Desktop'}")
+
+            if isinstance(input_source, str):
+                print("Loading from file path")
+                frame = cv2.imread(input_source)
+                print("Desktop image stats:", {
+                    "min": frame.min(),
+                    "max": frame.max(),
+                    "mean": frame.mean()
+                })
+            else:
+                print("Loading from input stream")
+                buffer = bytearray()
+                chunk_size = 8192  # Increased buffer size
+                byte_array = bytearray(chunk_size)
+                while True:
+                    bytes_read = input_source.read(byte_array)
+                    if bytes_read == -1:
+                        break
+                    buffer.extend(byte_array[:bytes_read])
+                input_source.close()
+
+                nparr = np.frombuffer(buffer, np.uint8)
+                frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                print("Android image stats:", {
+                    "min": frame.min(),
+                    "max": frame.max(),
+                    "mean": frame.mean()
+                })
+
+            print(f"Frame shape: {frame.shape}")
+            print(f"Frame dtype: {frame.dtype}")
+            print(f"Frame value range: [{frame.min()}, {frame.max()}]")
+
+            # Ensure consistent color space
+            if frame is not None:
+                # Normalize image to ensure consistent processing
+                frame = cv2.normalize(frame, None, 0, 255, cv2.NORM_MINMAX)
+
             processed_frame, result = process_frame(frame)
+            print(f"Process result: {result}")
+
             buf = cv2.cvtColor(processed_frame, cv2.COLOR_BGR2RGB)
             buf = cv2.flip(buf, 0)
 
@@ -72,7 +112,7 @@ class IrisDetector(MDApp):
             from android.activity import bind   # pylint: disable=import-error # type: ignore
             bind(on_activity_result=self.on_activity_result)
         else:
-            self.root.handle_selection('./1.jpeg')
+            self.root.handle_selection("./1.jpeg")
 
     def on_activity_result(self, request_code, result_code, data):
         if request_code == 123 and result_code == -1:
