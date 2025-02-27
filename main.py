@@ -25,12 +25,23 @@ class MainWidget(Widget):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
+    def preprocess_image(self, frame):
+        if frame is None:
+            return None
+        frame = frame.astype(np.float32)
+        frame = cv2.normalize(frame, None, 0, 255, cv2.NORM_MINMAX)
+        frame = frame.astype(np.uint8)
+        if len(frame.shape) == 2:
+            frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+        elif frame.shape[2] == 4:
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+        return frame
+
     def handle_selection(self, input_source):
         if not input_source:
             print("No input source.")
             return
         try:
-            # Debug platform info
             print(
                 f"Platform: {'Android' if platform == 'android' else 'Desktop'}")
 
@@ -45,7 +56,7 @@ class MainWidget(Widget):
             else:
                 print("Loading from input stream")
                 buffer = bytearray()
-                chunk_size = 8192  # Increased buffer size
+                chunk_size = 8192
                 byte_array = bytearray(chunk_size)
                 while True:
                     bytes_read = input_source.read(byte_array)
@@ -62,14 +73,16 @@ class MainWidget(Widget):
                     "mean": frame.mean()
                 })
 
-            print(f"Frame shape: {frame.shape}")
-            print(f"Frame dtype: {frame.dtype}")
-            print(f"Frame value range: [{frame.min()}, {frame.max()}]")
+            frame = self.preprocess_image(frame)
 
-            # Ensure consistent color space
-            if frame is not None:
-                # Normalize image to ensure consistent processing
-                frame = cv2.normalize(frame, None, 0, 255, cv2.NORM_MINMAX)
+            print("Image stats:", {
+                "shape": frame.shape,
+                "dtype": frame.dtype,
+                "min": frame.min(),
+                "max": frame.max(),
+                "mean": frame.mean(),
+                "std": frame.std()
+            })
 
             processed_frame, result = process_frame(frame)
             print(f"Process result: {result}")
@@ -103,7 +116,6 @@ class IrisDetector(MDApp):
                                 Permission.WRITE_EXTERNAL_STORAGE])
             from android import mActivity  # pylint: disable=import-error # type: ignore
             Intent = autoclass('android.content.Intent')
-            Uri = autoclass('android.net.Uri')
             self.mActivity = mActivity
             intent = Intent(Intent.ACTION_PICK)
             intent.setType("image/*")
