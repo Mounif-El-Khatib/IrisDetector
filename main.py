@@ -1,9 +1,8 @@
 from kivymd.app import MDApp
+from kivymd.uix.button import MDRaisedButton
 from kivy.graphics.texture import Texture
-from plyer import filechooser
 from IrisDetector import process_frame
-from jnius import autoclass, cast
-from kivy.uix.camera import Camera
+from jnius import autoclass
 from kivy.utils import platform
 from kivy.clock import Clock
 from kivymd.uix.boxlayout import MDBoxLayout
@@ -14,48 +13,33 @@ from PIL import Image
 from kivymd.uix.anchorlayout import MDAnchorLayout
 import cv2
 import numpy as np
-from components.CameraFrame import CameraFrame
+from camera4kivy import Preview
 from components.PictureFrame import PictureFrame
 from components.ButtonLayout import ButtonLayout
 
+# import utility.preprocess_image
 from colors import Colors
-
-DEBUG = True
 
 
 class IrisDetector(MDApp):
-    def preprocess_image(self, frame):
-        if frame is None:
-            return None
-        frame = frame.astype(np.float32)
-        frame = cv2.normalize(frame, None, 0, 255, cv2.NORM_MINMAX)
-        frame = frame.astype(np.uint8)
-        if len(frame.shape) == 2:
-            frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
-        elif frame.shape[2] == 4:
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
-        return frame
+
+    def clear_frame(self):
+        for c in list(self.placeholder.children):
+            if c is not None:
+                self.placeholder.remove_widget(c)
+        self.infoText = ""
 
     def handle_selection(self, input_source):
-        if self.camera:
-            self.camera.play = self.camera.stop_camera()
+        if self.preview is not None:
+            self.preview.disconnect_camera()
+        # self.clear_frame()
         if not input_source:
-            print("No input source.")
             return
         try:
-            if DEBUG:
-                print(f"Platform: {'Android' if platform == 'android' else 'Desktop'}")
-
             if isinstance(input_source, str):
-                print("Loading from file path")
                 frame = cv2.imread(input_source)
-                if DEBUG:
-                    print(
-                        "Desktop image stats:",
-                        {"min": frame.min(), "max": frame.max(), "mean": frame.mean()},
-                    )
             else:
-                print("Loading from input stream")
+
                 buffer = bytearray()
                 chunk_size = 8192
                 byte_array = bytearray(chunk_size)
@@ -68,13 +52,8 @@ class IrisDetector(MDApp):
 
                 nparr = np.frombuffer(buffer, np.uint8)
                 frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-                if DEBUG:
-                    print(
-                        "Android image stats:",
-                        {"min": frame.min(), "max": frame.max(), "mean": frame.mean()},
-                    )
 
-            frame = self.preprocess_image(frame)
+            # frame = preprocess_image(frame)
 
             processed_frame, result = process_frame(frame)
 
@@ -145,8 +124,6 @@ class IrisDetector(MDApp):
             print("Uri", uri)
             content_resolver = self.mActivity.getContentResolver()
             input_stream = content_resolver.openInputStream(uri)
-            if DEBUG:
-                print("Input_stream:", input_stream)
             self.handle_selection(input_stream)
 
     def open_camera(self, instance):
@@ -157,18 +134,52 @@ class IrisDetector(MDApp):
             )
 
             request_permissions([Permission.CAMERA, Permission.WRITE_EXTERNAL_STORAGE])
-            self.camera.rotate_camera(90)
-        if not self.camera:
-            self.camera = CameraFrame(resolution=(640, 480))
-        for c in list(self.placeholder.children):
-            if c is not None:
-                self.placeholder.remove_widget(c)
-        self.resultLabel.text = ""
-        self.placeholder.add_widget(self.camera)
-        # self.camera.rotate_camera(10)
-        self.camera.play = self.camera.toggle_camera()
+        self.clear_frame()
+        self.preview = Preview(aspect_ratio="4:3")
+        self.placeholder.add_widget(self.preview)
+        self.preview.connect_camera(
+            enable_analyze_pixels=True,
+            sensor_resolution=(640, 480),
+            analyze_pixels_callback=self.analyze_pixels,
+        )
+
+    def analyze_pixels(self, pixels, size, image_pos, image_scale, mirror):
+        print("HELLO")
+        frame = np.frombuffer(pixels, dtype=np.uint8)
+        frame = frame.reshape(size[1], size[0], -1)
+        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        processed_frame, result = process_frame(frame)
+
+        buf = cv2.cvtColor(processed_frame, cv2.COLOR_BGR2RGB)
+        buf = cv2.flip(buf, 0)
+
+        def update_texture(dt):
+            try:
+                texture = Texture.create(
+                    size=(buf.shape[1], buf.shape[0]), colorfmt="rgb"
+                )
+                texture.blit_buffer(buf.tobytes(), colorfmt="rgb", bufferfmt="ubyte")
+                self.pictureFrame.set_source(texture)
+                self.resultLabel.text = f"Iris to pupil ratio: {str(result)}"
+                for c in list(self.placeholder.children):
+                    if c is not None:
+                        self.placeholder.remove_widget(c)
+                self.placeholder.add_widget(self.pictureFrame)
+            except Exception as tex_err:
+                print(f"Error in texture update: {tex_err}")
+                import traceback
+
+                traceback.print_exc()
+
+        print("Im here")
+        Clock.schedule_once(update_texture)
+
+    def take_picture(self, instance):
+        self.preview.capture_photo()
+        print("Captured photo")
 
     def build(self):
+        self.preview = None
         # This is the main layout of the page
         self.orientation = "portrait"
         self.layout = MDBoxLayout(
@@ -211,6 +222,8 @@ class IrisDetector(MDApp):
         # This displays the ratio result right under the picture
         self.resultLabel = MDLabel(halign="center", font_style="H6", size_hint=(1, 0.4))
         self.layout.add_widget(self.resultLabel)
+        captureButton = MDRaisedButton(on_release=self.take_picture)
+        self.layout.add_widget(captureButton)
 
         # This is the button layout used, it consists of a grid made of 2 columns, where one button takes up 1 column
         self.buttonLayout = ButtonLayout(
@@ -220,7 +233,7 @@ class IrisDetector(MDApp):
             on_take_picture=self.open_camera,
         )
         self.layout.add_widget(self.buttonLayout)
-        self.camera = None
+        # self.camera = None
         return self.layout
 
 

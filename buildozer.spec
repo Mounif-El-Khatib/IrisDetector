@@ -16,7 +16,7 @@ version = 0.1
 # version.regex = __version__ = ['"](.*)['"]
 # version.filename = %(source.dir)s/main.py
 # comma separated e.g. requirements = sqlite3,kivy
-requirements = python3==3.8.20,hostpython3==3.8.20,kivy,plyer,pillow,requests,opencv,numpy,kivymd==1.2.0,androidstorage4kivy,pyjnius
+requirements = python3==3.8.20,hostpython3==3.8.20,kivy,plyer,pillow,requests,opencv,numpy,kivymd==1.2.0,androidstorage4kivy,pyjnius,camera4kivy,gestures4kivy
 # (str) Custom source folders for requirements
 # Sets custom source for any requirements with recipes
 # requirements.source.kivy = ../../kivy
@@ -307,7 +307,7 @@ android.allow_backup = True
 p4a.local_recipes = ./libs/numpy, ./libs/opencv
 
 # (str) Filename to the hook for p4a
-#p4a.hook =
+p4a.hook = camerax_provider/gradle_options.py
 
 # (str) Bootstrap to use for android builds
 p4a.bootstrap = sdl2

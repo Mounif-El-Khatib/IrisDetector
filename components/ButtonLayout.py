@@ -8,7 +8,6 @@ class ButtonLayout(MDGridLayout):
         backgroundColor = kwargs.get("md_bg_color")
         takePicCallback = kwargs.get("on_take_picture")
         selectPicCallback = kwargs.get("on_select_picture")
-        # leftBtnText = kwargs.get('text')
         font_size = kwargs.get("font_size", "16dp")
         self.cols = 2
         self.spacing = "10dp"
