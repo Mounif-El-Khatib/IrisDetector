@@ -6,14 +6,14 @@ from jnius import autoclass
 from kivy.utils import platform
 from kivy.clock import Clock
 from kivymd.uix.boxlayout import MDBoxLayout
-from kivymd.uix.gridlayout import MDGridLayout
 from kivymd.uix.label import MDLabel
-from kivymd.uix.widget import MDWidget
 from PIL import Image
 from kivymd.uix.anchorlayout import MDAnchorLayout
+import io
 import cv2
 import numpy as np
 from camera4kivy import Preview
+from components.CameraFrame import CameraFrame
 from components.PictureFrame import PictureFrame
 from components.ButtonLayout import ButtonLayout
 
@@ -32,7 +32,6 @@ class IrisDetector(MDApp):
     def handle_selection(self, input_source):
         if self.preview is not None:
             self.preview.disconnect_camera()
-        # self.clear_frame()
         if not input_source:
             return
         try:
@@ -52,8 +51,6 @@ class IrisDetector(MDApp):
 
                 nparr = np.frombuffer(buffer, np.uint8)
                 frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-
-            # frame = preprocess_image(frame)
 
             processed_frame, result = process_frame(frame)
 
@@ -93,10 +90,7 @@ class IrisDetector(MDApp):
     def get_image(self, instance):
         self.mActivity = None
         if platform == "android":
-            from android.permissions import (
-                request_permissions,
-                Permission,
-            )
+            from android.permissions import request_permissions, Permission
 
             request_permissions(
                 [Permission.READ_EXTERNAL_STORAGE, Permission.WRITE_EXTERNAL_STORAGE]
@@ -110,9 +104,7 @@ class IrisDetector(MDApp):
             intent.setType("image/*")
             self.mActivity.startActivityForResult(intent, 123)
 
-            from android.activity import (
-                bind,
-            )
+            from android.activity import bind
 
             bind(on_activity_result=self.on_activity_result)
         else:
@@ -122,61 +114,88 @@ class IrisDetector(MDApp):
         if request_code == 123 and result_code == -1:
             uri = data.getData()
             print("Uri", uri)
-            content_resolver = self.mActivity.getContentResolver()
-            input_stream = content_resolver.openInputStream(uri)
-            self.handle_selection(input_stream)
+            if self.mActivity:
+                content_resolver = self.mActivity.getContentResolver()
+                input_stream = content_resolver.openInputStream(uri)
+                self.handle_selection(input_stream)
 
     def open_camera(self, instance):
         if platform == "android":
-            from android.permissions import (
-                request_permissions,
-                Permission,
-            )
+            from android.permissions import request_permissions, Permission
 
             request_permissions([Permission.CAMERA, Permission.WRITE_EXTERNAL_STORAGE])
         self.clear_frame()
-        self.preview = Preview(aspect_ratio="4:3")
+        self.preview = CameraFrame(aspect_ratio="4:3")
+        self.preview.bind(on_texture_available=self.update_ui_with_texture)
         self.placeholder.add_widget(self.preview)
         self.preview.connect_camera(
+            sensor_resolution=(1280, 960),
+            enable_video=False,
             enable_analyze_pixels=True,
-            sensor_resolution=(640, 480),
-            analyze_pixels_callback=self.analyze_pixels,
         )
 
-    def analyze_pixels(self, pixels, size, image_pos, image_scale, mirror):
-        print("HELLO")
-        frame = np.frombuffer(pixels, dtype=np.uint8)
-        frame = frame.reshape(size[1], size[0], -1)
-        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-        processed_frame, result = process_frame(frame)
+    def take_picture(self, path):
+        if self.preview is not None:
+            self.preview.capture()
 
-        buf = cv2.cvtColor(processed_frame, cv2.COLOR_BGR2RGB)
-        buf = cv2.flip(buf, 0)
-
+    def update_ui_with_texture(self, instance, texture):
         def update_texture(dt):
             try:
-                texture = Texture.create(
-                    size=(buf.shape[1], buf.shape[0]), colorfmt="rgb"
-                )
-                texture.blit_buffer(buf.tobytes(), colorfmt="rgb", bufferfmt="ubyte")
-                self.pictureFrame.set_source(texture)
-                self.resultLabel.text = f"Iris to pupil ratio: {str(result)}"
-                for c in list(self.placeholder.children):
-                    if c is not None:
-                        self.placeholder.remove_widget(c)
-                self.placeholder.add_widget(self.pictureFrame)
+                if texture:
+                    # Convert Kivy texture to NumPy array
+                    size = texture.size
+                    buffer = texture.pixels  # Get raw pixel data
+                    img_array = np.frombuffer(buffer, dtype=np.uint8).reshape(
+                        size[1], size[0], 4
+                    )  # RGBA
+
+                    # Convert RGBA to RGB (ignore alpha channel)
+                    img_array = cv2.cvtColor(img_array, cv2.COLOR_RGBA2RGB)
+
+                    # Flip image vertically to correct orientation
+                    img_array = cv2.flip(img_array, 0)
+
+                    # Store image in memory using Pillow
+                    image_pil = Image.fromarray(img_array)  # Convert to PIL image
+                    img_byte_arr = io.BytesIO()  # Create a bytes buffer
+                    image_pil.save(img_byte_arr, format="PNG")  # Save as PNG in memory
+                    img_byte_arr = img_byte_arr.getvalue()  # Get bytes data
+
+                    # Load image back from memory
+                    loaded_image = Image.open(io.BytesIO(img_byte_arr))
+                    img_data = np.array(loaded_image)
+                    img_data, result = process_frame(img_data)
+                    # Convert the reloaded image to a Kivy texture
+                    new_texture = Texture.create(
+                        size=(img_data.shape[1], img_data.shape[0]), colorfmt="rgb"
+                    )
+                    new_texture.blit_buffer(
+                        img_data.tobytes(), colorfmt="rgb", bufferfmt="ubyte"
+                    )
+
+                    # Display the new texture (captured image)
+                    self.pictureFrame.set_source(new_texture)
+                    self.resultLabel.text = f"Iris to pupil ratio: {str(result)}"
+
+                    # Remove the camera preview from UI
+                    self.placeholder.clear_widgets()
+                    self.placeholder.add_widget(self.pictureFrame)
+
+                # Disconnect camera AFTER displaying the image
+                Clock.schedule_once(lambda dt: self.disconnect_camera(), 0.5)
+
             except Exception as tex_err:
                 print(f"Error in texture update: {tex_err}")
                 import traceback
 
                 traceback.print_exc()
 
-        print("Im here")
         Clock.schedule_once(update_texture)
 
-    def take_picture(self, instance):
-        self.preview.capture_photo()
-        print("Captured photo")
+    def disconnect_camera(self):
+        if self.preview is not None:
+            self.preview.disconnect_camera()
+            self.preview = None
 
     def build(self):
         self.preview = None
