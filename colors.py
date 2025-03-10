@@ -8,7 +8,7 @@ class Colors(Enum):
     TEAL = "#1ABC9C"
 
     # Secondary Colors
-    LIGHT_GRAY = "#F5F5F5"
+    LIGHT_GRAY = "#E0E0E0"
     MEDIUM_GRAY = "#BDBDBD"
     DARK_GRAY = "#333333"
 

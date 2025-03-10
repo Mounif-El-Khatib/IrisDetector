@@ -7,7 +7,6 @@ class PictureFrame(MDCard):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        image_radius = kwargs.get("image_radius", [10])
 
         self.anchor_layout = AnchorLayout(
             anchor_x="center", anchor_y="center", size_hint=(1, 1)
@@ -15,7 +14,7 @@ class PictureFrame(MDCard):
 
         self.image = FitImage(
             size_hint=(1, 1),
-            radius=image_radius,
+            radius=[4],
             mipmap=True,
             pos_hint={"center_x": 0.5, "center_y": 0.5},
             minimum_height=640,
