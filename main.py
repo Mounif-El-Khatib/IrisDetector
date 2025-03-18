@@ -209,8 +209,8 @@ class IrisDetector(MDApp):
         return self.layout
 
     def reset_selection(self, instance):
-        print("HELLO")
-        if self.pictureFrame is not None:
+        if self.resultLabel.get_text() != "":
+            print("Here")
             self.selectPictureScreen.reset_screen()
             self.resultLabel.clear_result()
 
@@ -225,10 +225,9 @@ class IrisDetector(MDApp):
         # Create the top bar
         self.top_bar = MDTopAppBar(
             title="Iris Detector",
-            elevation=10,
-            anchor_title="center",
+            elevation=1,
+            anchor_title="left",
             right_action_items=[["refresh", self.reset_selection], ["content-save"]],
-            left_action_items=[["menu"]],
         )
         self.layout.add_widget(self.top_bar)
 

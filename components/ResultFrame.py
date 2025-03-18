@@ -36,3 +36,6 @@ class ResultFrame(MDCard):
         self.result.text = ""
         self.label.text = ""
         self.line_color = (0, 0, 0, 0)
+
+    def get_text(self):
+        return self.result.text
