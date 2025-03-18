@@ -31,3 +31,8 @@ class ResultFrame(MDCard):
         self.label.text = "Result:"
         self.radius = [8]
         self.line_color = Colors.LIGHT_GRAY.value
+
+    def clear_result(self):
+        self.result.text = ""
+        self.label.text = ""
+        self.line_color = (0, 0, 0, 0)

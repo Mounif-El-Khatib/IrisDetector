@@ -1,4 +1,5 @@
 from kivymd.app import MDApp
+from kivymd.uix.toolbar import MDTopAppBar
 from kivymd.uix.bottomnavigation import MDBottomNavigation, MDBottomNavigationItem
 from kivymd.uix.button import MDRaisedButton
 from kivy.graphics.texture import Texture
@@ -13,6 +14,7 @@ from kivymd.uix.anchorlayout import MDAnchorLayout
 import io
 import cv2
 import numpy as np
+from components.AppBar import AppBar
 from components.CameraFrame import CameraFrame
 from components.PictureFrame import PictureFrame
 from components.ButtonLayout import ButtonLayout
@@ -20,15 +22,17 @@ from kivymd.uix.screen import Screen
 
 from colors import Colors
 from components.ResultFrame import ResultFrame
+from components.SelectPictureScreen import SelectPictureScreen
 
 
 class IrisDetector(MDApp):
 
     def display_result(self, texture, result):
-        self.pictureFrame.set_source(texture)
-        self.resultLabel.set_text(f"Iris to pupil ratio: {str(result)}")
-        self.placeholder.clear_widgets()
-        self.placeholder.add_widget(self.pictureFrame)
+        if self.pictureFrame is not None:
+            self.pictureFrame.set_source(texture)
+            self.resultLabel.set_text(f"Iris to pupil ratio: {str(result)}")
+            self.selectPictureScreen.set_padding([0])
+            self.selectPictureScreen.set_placeholder(self.pictureFrame)
 
     def handle_selection(self, input_source):
         if self.preview is not None:
@@ -175,31 +179,7 @@ class IrisDetector(MDApp):
             self.preview = None
 
     def create_select_picture_screen(self):
-        self.layout = MDBoxLayout(
-            orientation="vertical",
-            padding="10dp",
-            spacing="10dp",
-            md_bg_color=Colors.CRISP_WHITE.value,
-            pos_hint={"center_x": 0.5, "center_y": 0.5},
-        )
-
-        self.placeholder = MDAnchorLayout(
-            md_bg_color=(0, 0, 0, 0),
-            anchor_x="center",
-            anchor_y="center",
-            size_hint=(1, 1),
-        )
-
-        self.infoText = MDLabel(
-            text="Select an image to process, or take a picture with the camera.",
-            halign="center",
-            font_style="H5",
-            size_hint=(1, 1),
-        )
-        self.infoText.color = Colors.COOL_GRAY.value
-
-        self.placeholder.add_widget(self.infoText)
-        self.layout.add_widget(self.placeholder)
+        self.selectPictureScreen = SelectPictureScreen(on_click=self.get_image)
 
         self.pictureFrame = PictureFrame(
             md_bg_color=Colors.LIGHT_GRAY.value,
@@ -209,11 +189,11 @@ class IrisDetector(MDApp):
         )
 
         self.resultLabel = ResultFrame()
-        self.layout.add_widget(self.resultLabel)
-        return self.layout
+        self.selectPictureScreen.add_widget(self.resultLabel)
+        return self.selectPictureScreen
 
     def create_camera_screen(self):
-        self.layout = MDBoxLayout(
+        self.cameraScreen = MDBoxLayout(
             orientation="vertical",
             padding="10dp",
             spacing="10dp",
@@ -221,47 +201,73 @@ class IrisDetector(MDApp):
             pos_hint={"center_x": 0.5, "center_y": 0.5},
         )
         captureButton = MDRaisedButton(on_release=self.take_picture)
-        self.layout.add_widget(captureButton)
-        return self.layout
+        self.cameraScreen.add_widget(captureButton)
+        return self.cameraScreen
 
     def create_history_screen(self):
         self.layout = MDBoxLayout()
         return self.layout
 
-    def build(self):
-        self.orientation = "portrait"
-        self.preview = None
+    def reset_selection(self, instance):
+        print("HELLO")
+        if self.pictureFrame is not None:
+            self.selectPictureScreen.reset_screen()
+            self.resultLabel.clear_result()
 
+    def build(self):
+        # Create the main screen
         self.screen = Screen()
+        self.preview = None
+        # Create a vertical box layout to hold the top bar and bottom navigation
+        self.layout = MDBoxLayout(orientation="vertical")
+        self.pictureFrame = None
+
+        # Create the top bar
+        self.top_bar = MDTopAppBar(
+            title="Iris Detector",
+            elevation=10,
+            anchor_title="center",
+            right_action_items=[["refresh", self.reset_selection], ["content-save"]],
+            left_action_items=[["menu"]],
+        )
+        self.layout.add_widget(self.top_bar)
+
+        # Create the bottom navigation
         self.bottomNavigation = MDBottomNavigation()
 
+        # Add "Select Picture" tab
         self.selectPicture = MDBottomNavigationItem(
             name="select_picture", text="Select Picture", icon="image"
         )
-        self.selectPicture.add_widget(self.create_select_picture_screen())
+        self.selectPicture.add_widget(
+            self.create_select_picture_screen()
+        )  # Replace with your widget
         self.bottomNavigation.add_widget(self.selectPicture)
 
+        # Add "Take Picture" tab
         self.takePicture = MDBottomNavigationItem(
             name="take_picture", text="Take Picture", icon="camera"
         )
-        self.takePicture.add_widget(self.create_camera_screen())
+        self.takePicture.add_widget(
+            MDLabel(text="Camera Screen", halign="center")
+        )  # Replace with your widget
         self.bottomNavigation.add_widget(self.takePicture)
 
+        # Add "History" tab
         self.history = MDBottomNavigationItem(
-            name="history", text="history", icon="history"
+            name="history", text="History", icon="history"
         )
-        self.history.add_widget(self.create_history_screen())
+        self.history.add_widget(
+            MDLabel(text="History Screen", halign="center")
+        )  # Replace with your widget
         self.bottomNavigation.add_widget(self.history)
 
-        # This is the button layout used, it consists of a grid made of 2 columns, where one button takes up 1 column
-        # self.buttonLayout = ButtonLayout(
-        #     md_bg_color=Colors.CHARCOAL.value,
-        #     on_select_picture=self.get_image,
-        #     font_size="18dp",
-        #     on_take_picture=self.open_camera,
-        # )
-        # self.layout.add_widget(self.buttonLayout)
-        self.screen.add_widget(self.bottomNavigation)
+        # Add the bottom navigation to the layout
+        self.layout.add_widget(self.bottomNavigation)
+
+        # Add the layout to the screen
+        self.screen.add_widget(self.layout)
+
         return self.screen
 
 
