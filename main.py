@@ -28,11 +28,20 @@ from components.SelectPictureScreen import SelectPictureScreen
 class IrisDetector(MDApp):
 
     def display_result(self, texture, result):
-        if self.pictureFrame is not None:
-            self.pictureFrame.set_source(texture)
-            self.resultLabel.set_text(f"Iris to pupil ratio: {str(result)}")
-            self.selectPictureScreen.set_padding([0])
-            self.selectPictureScreen.set_placeholder(self.pictureFrame)
+        if self.currentScreen == "take_picture":
+            if self.cameraPictureFrame is not None:
+                self.cameraPictureFrame.set_source(texture)
+                if self.cameraResultFrame is not None:
+                    self.cameraResultFrame.set_text(
+                        f"Iris to pupil ratio: {str(result)}"
+                    )
+
+        if self.currentScreen == "select_picture":
+            if self.pictureFrame is not None:
+                self.pictureFrame.set_source(texture)
+                self.resultLabel.set_text(f"Iris to pupil ratio: {str(result)}")
+                self.selectPictureScreen.set_padding([0])
+                self.selectPictureScreen.set_placeholder(self.pictureFrame)
 
     def handle_selection(self, input_source):
         if self.preview is not None:
@@ -118,18 +127,25 @@ class IrisDetector(MDApp):
                 self.handle_selection(input_stream)
 
     def open_camera(self, instance):
+        self.currentScreen = "take_picture"
+        self.top_bar.right_action_items = [
+            ["refresh", self.reset_selection],
+            ["content-save", self.print_curr_screen],
+        ]
         if platform == "android":
             from android.permissions import request_permissions, Permission
 
             request_permissions([Permission.CAMERA, Permission.WRITE_EXTERNAL_STORAGE])
-        self.preview = CameraFrame(aspect_ratio="4:3")
-        self.preview.bind(on_texture_available=self.update_ui_with_texture)
-        self.placeholder.add_widget(self.preview)
-        self.preview.connect_camera(
-            sensor_resolution=(1280, 960),
-            enable_video=False,
-            enable_analyze_pixels=True,
-        )
+        if self.preview is None:
+            self.preview = CameraFrame(aspect_ratio="4:3")
+            self.preview.bind(on_texture_available=self.update_ui_with_texture)
+            if self.cameraPlaceholder is not None:
+                self.cameraPlaceholder.add_widget(self.preview)
+                self.preview.connect_camera(
+                    sensor_resolution=(640, 480),
+                    enable_video=False,
+                    enable_analyze_pixels=True,
+                )
 
     def take_picture(self, path):
         if self.preview is not None:
@@ -163,7 +179,7 @@ class IrisDetector(MDApp):
                     )
                     self.display_result(new_texture, result)
 
-                Clock.schedule_once(lambda dt: self.disconnect_camera(), 0.5)
+                Clock.schedule_once(lambda dt: self.disconnect_camera, 0.5)
 
             except Exception as tex_err:
                 print(f"Error in texture update: {tex_err}")
@@ -173,14 +189,13 @@ class IrisDetector(MDApp):
 
         Clock.schedule_once(update_texture)
 
-    def disconnect_camera(self):
+    def disconnect_camera(self, instance):
         if self.preview is not None:
             self.preview.disconnect_camera()
             self.preview = None
 
     def create_select_picture_screen(self):
         self.selectPictureScreen = SelectPictureScreen(on_click=self.get_image)
-
         self.pictureFrame = PictureFrame(
             md_bg_color=Colors.LIGHT_GRAY.value,
             size_hint=(1, 1),
@@ -200,71 +215,94 @@ class IrisDetector(MDApp):
             md_bg_color=Colors.CRISP_WHITE.value,
             pos_hint={"center_x": 0.5, "center_y": 0.5},
         )
+
+        self.cameraPictureFrame = PictureFrame(
+            md_bg_color=Colors.LIGHT_GRAY.value,
+            size_hint=(1, 1),
+            padding="2dp",
+            radius=[8],
+        )
+        self.cameraResultFrame = ResultFrame()
+        self.cameraPlaceholder = MDAnchorLayout()
         captureButton = MDRaisedButton(on_release=self.take_picture)
+        self.cameraScreen.add_widget(self.cameraPlaceholder)
         self.cameraScreen.add_widget(captureButton)
+        self.cameraScreen.add_widget(self.cameraResultFrame)
         return self.cameraScreen
 
     def create_history_screen(self):
         self.layout = MDBoxLayout()
         return self.layout
 
+    def print_curr_screen(self, instance):
+        print(self.currentScreen)
+
     def reset_selection(self, instance):
         if self.resultLabel.get_text() != "":
-            print("Here")
             self.selectPictureScreen.reset_screen()
             self.resultLabel.clear_result()
 
+    def select_picture_screen(self, instance):
+        self.currentScreen = "select_picture"
+        self.disconnect_camera(instance)
+        self.top_bar.right_action_items = [
+            ["refresh", self.reset_selection],
+            ["content-save", self.print_curr_screen],
+        ]
+
+    def history_screen(self, instance):
+        self.currentScreen = "history"
+        self.disconnect_camera(instance)
+        self.top_bar.right_action_items = []
+
     def build(self):
-        # Create the main screen
+        self.cameraScreen = None
+        self.cameraResultFrame = None
+        self.currentScreen = "select_picture"
         self.screen = Screen()
         self.preview = None
-        # Create a vertical box layout to hold the top bar and bottom navigation
         self.layout = MDBoxLayout(orientation="vertical")
         self.pictureFrame = None
-
-        # Create the top bar
+        self.cameraPictureFrame = None
+        self.cameraPlaceholder = None
         self.top_bar = MDTopAppBar(
             title="Iris Detector",
             elevation=1,
             anchor_title="left",
-            right_action_items=[["refresh", self.reset_selection], ["content-save"]],
+            right_action_items=[
+                ["refresh", self.reset_selection],
+                ["content-save", self.print_curr_screen],
+            ],
         )
+
         self.layout.add_widget(self.top_bar)
 
-        # Create the bottom navigation
         self.bottomNavigation = MDBottomNavigation()
 
-        # Add "Select Picture" tab
         self.selectPicture = MDBottomNavigationItem(
             name="select_picture", text="Select Picture", icon="image"
         )
-        self.selectPicture.add_widget(
-            self.create_select_picture_screen()
-        )  # Replace with your widget
+        self.selectPicture.bind(on_tab_press=self.select_picture_screen)
+        self.selectPicture.add_widget(self.create_select_picture_screen())
         self.bottomNavigation.add_widget(self.selectPicture)
 
-        # Add "Take Picture" tab
         self.takePicture = MDBottomNavigationItem(
             name="take_picture", text="Take Picture", icon="camera"
         )
-        self.takePicture.add_widget(
-            MDLabel(text="Camera Screen", halign="center")
-        )  # Replace with your widget
+        self.takePicture.bind(on_tab_press=self.open_camera)
+
+        self.takePicture.add_widget(self.create_camera_screen())
         self.bottomNavigation.add_widget(self.takePicture)
 
-        # Add "History" tab
         self.history = MDBottomNavigationItem(
             name="history", text="History", icon="history"
         )
-        self.history.add_widget(
-            MDLabel(text="History Screen", halign="center")
-        )  # Replace with your widget
+        self.history.bind(on_tab_press=self.history_screen)
+        self.history.add_widget(MDLabel(text="History Screen", halign="center"))
         self.bottomNavigation.add_widget(self.history)
 
-        # Add the bottom navigation to the layout
         self.layout.add_widget(self.bottomNavigation)
 
-        # Add the layout to the screen
         self.screen.add_widget(self.layout)
 
         return self.screen

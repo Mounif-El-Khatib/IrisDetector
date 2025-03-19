@@ -1,5 +1,4 @@
 from camera4kivy import Preview
-from PIL import Image
 
 
 class CameraFrame(Preview):
