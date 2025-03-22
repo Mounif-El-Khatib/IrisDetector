@@ -14,22 +14,33 @@ from kivymd.uix.anchorlayout import MDAnchorLayout
 import io
 import cv2
 import numpy as np
-from components.AppBar import AppBar
 from components.CameraFrame import CameraFrame
 from components.PictureFrame import PictureFrame
-from components.ButtonLayout import ButtonLayout
 from kivymd.uix.screen import Screen
-
 from colors import Colors
 from components.ResultFrame import ResultFrame
 from components.SelectPictureScreen import SelectPictureScreen
+import datetime
 
 
 class IrisDetector(MDApp):
 
+    def save_result(self, instance):
+        savefile = "irisdetector_saved_info.txt"
+        date = datetime.datetime.now()
+        if self.currentScreen == "take_picture":
+            if self.cameraPictureFrame:
+                self.cameraPictureFrame.export_as_image().save(f"{date}.png")
+        elif self.currentScreen == "select_picture":
+            if self.pictureFrame:
+                self.pictureFrame.export_as_image().save(f"{date}.png")
+
     def display_result(self, texture, result):
         if self.currentScreen == "take_picture":
-            if self.cameraPictureFrame is not None:
+            if self.cameraPlaceholder is not None:
+                self.cameraPlaceholder.clear_widgets()
+                if self.cameraPlaceholder is not None:
+                    self.cameraPlaceholder.add_widget(self.cameraPictureFrame)
                 self.cameraPictureFrame.set_source(texture)
                 if self.cameraResultFrame is not None:
                     self.cameraResultFrame.set_text(
@@ -128,10 +139,11 @@ class IrisDetector(MDApp):
 
     def open_camera(self, instance):
         self.currentScreen = "take_picture"
-        self.top_bar.right_action_items = [
-            ["refresh", self.reset_selection],
-            ["content-save", self.print_curr_screen],
-        ]
+        if self.top_bar.right_action_items == []:
+            self.top_bar.right_action_items = [
+                ["refresh", self.reset_selection],
+                ["content-save", self.save_result],
+            ]
         if platform == "android":
             from android.permissions import request_permissions, Permission
 
@@ -142,7 +154,7 @@ class IrisDetector(MDApp):
             if self.cameraPlaceholder is not None:
                 self.cameraPlaceholder.add_widget(self.preview)
                 self.preview.connect_camera(
-                    sensor_resolution=(640, 480),
+                    sensor_resolution=(2048, 1536),
                     enable_video=False,
                     enable_analyze_pixels=True,
                 )
@@ -170,6 +182,7 @@ class IrisDetector(MDApp):
 
                     loaded_image = Image.open(io.BytesIO(img_byte_arr))
                     img_data = np.array(loaded_image)
+                    result = "a"
                     img_data, result = process_frame(img_data)
                     new_texture = Texture.create(
                         size=(img_data.shape[1], img_data.shape[0]), colorfmt="rgb"
@@ -238,17 +251,25 @@ class IrisDetector(MDApp):
         print(self.currentScreen)
 
     def reset_selection(self, instance):
-        if self.resultLabel.get_text() != "":
-            self.selectPictureScreen.reset_screen()
-            self.resultLabel.clear_result()
+        if self.currentScreen == "select_picture":
+            if self.resultLabel.get_text() != "":
+                self.selectPictureScreen.reset_screen()
+                self.resultLabel.clear_result()
+        if self.currentScreen == "take_picture":
+            if self.cameraResultFrame and self.cameraResultFrame.get_text() != "":
+                if self.cameraPlaceholder:
+                    self.cameraPlaceholder.clear_widgets()
+                    self.cameraPlaceholder.add_widget(self.preview)
+                    self.cameraResultFrame.clear_result()
 
     def select_picture_screen(self, instance):
         self.currentScreen = "select_picture"
         self.disconnect_camera(instance)
-        self.top_bar.right_action_items = [
-            ["refresh", self.reset_selection],
-            ["content-save", self.print_curr_screen],
-        ]
+        if self.top_bar.right_action_items == []:
+            self.top_bar.right_action_items = [
+                ["refresh", self.reset_selection],
+                ["content-save", self.save_result],
+            ]
 
     def history_screen(self, instance):
         self.currentScreen = "history"
@@ -271,7 +292,7 @@ class IrisDetector(MDApp):
             anchor_title="left",
             right_action_items=[
                 ["refresh", self.reset_selection],
-                ["content-save", self.print_curr_screen],
+                ["content-save", self.save_result],
             ],
         )
 
