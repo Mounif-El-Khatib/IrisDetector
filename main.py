@@ -1,3 +1,6 @@
+from threading import ExceptHookArgs
+
+from kivy.uix.boxlayout import BoxLayout
 from kivymd.app import MDApp
 from kivymd.uix.toolbar import MDTopAppBar
 from kivymd.uix.bottomnavigation import MDBottomNavigation, MDBottomNavigationItem
@@ -15,25 +18,101 @@ import io
 import cv2
 import numpy as np
 from components.CameraFrame import CameraFrame
+from components.HistoryScreen import HistoryScreen
 from components.PictureFrame import PictureFrame
 from kivymd.uix.screen import Screen
 from colors import Colors
 from components.ResultFrame import ResultFrame
 from components.SelectPictureScreen import SelectPictureScreen
 import datetime
+import os
+import sqlite3
+
+
+def init_db(db_path):
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS images (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                filename TEXT,
+                result TEXT,
+                timestamp TEXT
+                )
+            """
+        )
+        conn.commit()
+        conn.close()
+    except sqlite3.Error as e:
+        print(e)
+
+
+def insert_image(db_path, filename, result):
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO images (filename, result, timestamp) VALUES (?, ?, ?)
+        """,
+            (str(filename), str(result.get_text().split(": ")[1]), str(timestamp)),
+        )
+        conn.commit()
+        conn.close()
+        print(f"Saved {filename} with '{result.get_text()}' at {timestamp}")
+    except Exception as e:
+        print(e)
+
+
+def get_storage_path():
+    if platform == "android":
+        from android.storage import app_storage_path
+
+        context = autoclass("org.kivy.android.PythonActivity").mActivity
+        return app_storage_path()
+    else:
+        return os.getcwd()
+
+
+def get_db_path():
+    storage_path = get_storage_path()
+    return os.path.join(storage_path, "iris_detector.db")
 
 
 class IrisDetector(MDApp):
 
+    def __init__(self, **kwargs):
+        super().__init__()
+        self.cameraScreen = None
+
     def save_result(self, instance):
-        savefile = "irisdetector_saved_info.txt"
-        date = datetime.datetime.now()
-        if self.currentScreen == "take_picture":
-            if self.cameraPictureFrame:
-                self.cameraPictureFrame.export_as_image().save(f"{date}.png")
-        elif self.currentScreen == "select_picture":
-            if self.pictureFrame:
-                self.pictureFrame.export_as_image().save(f"{date}.png")
+        if (
+            self.resultLabel
+            and self.resultLabel.get_text() != ""
+            or self.cameraResultFrame
+            and self.cameraResultFrame.get_text() != ""
+        ):  # Make sure result exists
+            date = datetime.datetime.now()
+            timestamp = date.strftime("%Y%m%d_%H%M%S")
+            filename = f"image_{timestamp}.png"
+            if platform == "android":
+                internal_path = get_storage_path()
+            else:
+                internal_path = os.getcwd()
+            full_image_path = os.path.join(internal_path, filename)
+            db_path = get_db_path()
+            init_db(db_path)
+            result = self.resultLabel
+            if self.currentScreen == "take_picture":
+                result = self.cameraResultFrame
+            insert_image(db_path, filename, result)
+            if self.currentScreen == "take_picture" and self.cameraPictureFrame:
+                self.cameraPictureFrame.export_as_image().save(full_image_path)
+            elif self.currentScreen == "select_picture" and self.pictureFrame:
+                self.pictureFrame.export_as_image().save(full_image_path)
 
     def display_result(self, texture, result):
         if self.currentScreen == "take_picture":
@@ -244,8 +323,10 @@ class IrisDetector(MDApp):
         return self.cameraScreen
 
     def create_history_screen(self):
-        self.layout = MDBoxLayout()
-        return self.layout
+        box_layout = MDBoxLayout(orientation="vertical", md_bg_color=Colors.LIGHT_GRAY.value)
+        history_screen = HistoryScreen()
+        box_layout.add_widget(history_screen)
+        return box_layout
 
     def print_curr_screen(self, instance):
         print(self.currentScreen)
@@ -275,6 +356,7 @@ class IrisDetector(MDApp):
         self.currentScreen = "history"
         self.disconnect_camera(instance)
         self.top_bar.right_action_items = []
+
 
     def build(self):
         self.cameraScreen = None
@@ -319,7 +401,7 @@ class IrisDetector(MDApp):
             name="history", text="History", icon="history"
         )
         self.history.bind(on_tab_press=self.history_screen)
-        self.history.add_widget(MDLabel(text="History Screen", halign="center"))
+        self.history.add_widget(self.create_history_screen())
         self.bottomNavigation.add_widget(self.history)
 
         self.layout.add_widget(self.bottomNavigation)

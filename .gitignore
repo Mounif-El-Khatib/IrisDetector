@@ -6,7 +6,9 @@ libs/
 venv/
 *.jpeg
 *.jpg
+*.png
 deploy.sh
 script.sh
 test.py
 script.py
+*.db
