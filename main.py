@@ -67,6 +67,18 @@ def insert_image(db_path, filename, result):
         print(e)
 
 
+def get_saved_data(db_path: str):
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT * FROM images;
+        """
+    )
+    data = cursor.fetchall()
+    return data
+
+
 def get_storage_path():
     if platform == "android":
         from android.storage import app_storage_path
@@ -79,7 +91,9 @@ def get_storage_path():
 
 def get_db_path():
     storage_path = get_storage_path()
-    return os.path.join(storage_path, "iris_detector.db")
+    db_path = os.path.join(storage_path, "iris_detector.db")
+    init_db(db_path)
+    return db_path
 
 
 class IrisDetector(MDApp):
@@ -323,9 +337,11 @@ class IrisDetector(MDApp):
         return self.cameraScreen
 
     def create_history_screen(self):
-        box_layout = MDBoxLayout(orientation="vertical", md_bg_color=Colors.LIGHT_GRAY.value)
-        history_screen = HistoryScreen()
-        box_layout.add_widget(history_screen)
+        box_layout = MDBoxLayout(
+            orientation="vertical", md_bg_color=Colors.LIGHT_GRAY.value
+        )
+        self.historyScreen = HistoryScreen()
+        box_layout.add_widget(self.historyScreen)
         return box_layout
 
     def print_curr_screen(self, instance):
@@ -356,7 +372,10 @@ class IrisDetector(MDApp):
         self.currentScreen = "history"
         self.disconnect_camera(instance)
         self.top_bar.right_action_items = []
-
+        path = get_db_path()
+        data = get_saved_data(path)
+        self.historyScreen.set_data(data)
+        print(data)
 
     def build(self):
         self.cameraScreen = None
