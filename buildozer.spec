@@ -1,5 +1,5 @@
 [app]
-title = App
+title = IrisDetector
 package.name = myapp
 # (str) Package domain (needed for android/ios packaging)
 package.domain = org.test

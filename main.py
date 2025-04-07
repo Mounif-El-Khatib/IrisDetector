@@ -1,6 +1,3 @@
-from threading import ExceptHookArgs
-
-from kivy.uix.boxlayout import BoxLayout
 from kivymd.app import MDApp
 from kivymd.uix.toolbar import MDTopAppBar
 from kivymd.uix.bottomnavigation import MDBottomNavigation, MDBottomNavigationItem
@@ -11,7 +8,6 @@ from jnius import autoclass
 from kivy.utils import platform
 from kivy.clock import Clock
 from kivymd.uix.boxlayout import MDBoxLayout
-from kivymd.uix.label import MDLabel
 from PIL import Image
 from kivymd.uix.anchorlayout import MDAnchorLayout
 import io
@@ -24,76 +20,9 @@ from kivymd.uix.screen import Screen
 from colors import Colors
 from components.ResultFrame import ResultFrame
 from components.SelectPictureScreen import SelectPictureScreen
-import datetime
 import os
-import sqlite3
-
-
-def init_db(db_path):
-    try:
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS images (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                filename TEXT,
-                result TEXT,
-                timestamp TEXT
-                )
-            """
-        )
-        conn.commit()
-        conn.close()
-    except sqlite3.Error as e:
-        print(e)
-
-
-def insert_image(db_path, filename, result):
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    try:
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            INSERT INTO images (filename, result, timestamp) VALUES (?, ?, ?)
-        """,
-            (str(filename), str(result.get_text().split(": ")[1]), str(timestamp)),
-        )
-        conn.commit()
-        conn.close()
-        print(f"Saved {filename} with '{result.get_text()}' at {timestamp}")
-    except Exception as e:
-        print(e)
-
-
-def get_saved_data(db_path: str):
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        SELECT * FROM images;
-        """
-    )
-    data = cursor.fetchall()
-    return data
-
-
-def get_storage_path():
-    if platform == "android":
-        from android.storage import app_storage_path
-
-        context = autoclass("org.kivy.android.PythonActivity").mActivity
-        return app_storage_path()
-    else:
-        return os.getcwd()
-
-
-def get_db_path():
-    storage_path = get_storage_path()
-    db_path = os.path.join(storage_path, "iris_detector.db")
-    init_db(db_path)
-    return db_path
+from dbManager import DBManager
+import datetime
 
 
 class IrisDetector(MDApp):
@@ -105,24 +34,20 @@ class IrisDetector(MDApp):
     def save_result(self, instance):
         if (
             self.resultLabel
-            and self.resultLabel.get_text() != ""
+            and self.resultLabel.get_result() != ""
             or self.cameraResultFrame
-            and self.cameraResultFrame.get_text() != ""
+            and self.cameraResultFrame.get_result() != ""
         ):  # Make sure result exists
             date = datetime.datetime.now()
             timestamp = date.strftime("%Y%m%d_%H%M%S")
             filename = f"image_{timestamp}.png"
-            if platform == "android":
-                internal_path = get_storage_path()
-            else:
-                internal_path = os.getcwd()
+            internal_path = DBManager.get_storage_path()
             full_image_path = os.path.join(internal_path, filename)
-            db_path = get_db_path()
-            init_db(db_path)
+            db_path = DBManager.get_db_path()
             result = self.resultLabel
             if self.currentScreen == "take_picture":
                 result = self.cameraResultFrame
-            insert_image(db_path, filename, result)
+            DBManager.insert_image(db_path, filename, result)
             if self.currentScreen == "take_picture" and self.cameraPictureFrame:
                 self.cameraPictureFrame.export_as_image().save(full_image_path)
             elif self.currentScreen == "select_picture" and self.pictureFrame:
@@ -372,8 +297,8 @@ class IrisDetector(MDApp):
         self.currentScreen = "history"
         self.disconnect_camera(instance)
         self.top_bar.right_action_items = []
-        path = get_db_path()
-        data = get_saved_data(path)
+        path = DBManager.get_db_path()
+        data = DBManager.get_saved_data(path)
         self.historyScreen.set_data(data)
         print(data)
 

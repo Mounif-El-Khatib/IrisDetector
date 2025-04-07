@@ -34,3 +34,9 @@ class PictureFrame(MDCard):
     @source.setter
     def source(self, value):
         self.image.source = value
+
+    def image_exists(self):
+        exists = False
+        if self.source() is not None:
+            exists = True
+        return exists

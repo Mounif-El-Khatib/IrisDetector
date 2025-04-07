@@ -7,11 +7,6 @@ Created on Sun Aug 18 08:39:31 2024
 
 import cv2
 import numpy as np
-import random
-import math
-import os
-import json
-import argparse
 
 # Crop the image to maintain a specific aspect ratio (width:height) before resizing.
 

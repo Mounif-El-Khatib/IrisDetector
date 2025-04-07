@@ -1,36 +1,3 @@
-# GridLayout:
-#         cols: 3
-#         size_hint_y: None
-#         height: '40dp'
-#         spacing: '10dp'
-#         padding: '10dp'
-#
-#         MDLabel:
-#             text: 'Image'
-#             size_hint_x: 1/3
-#             width: '100dp'
-#             font_style: 'H6'
-#             bold: True
-#             halign: 'center'
-#             valign: 'middle'
-#
-#         MDLabel:
-#             text: 'Iris to Pupil Ratio'
-#             font_style: 'H6'
-#             bold: True
-#             size_hint_x: 1/3
-#             halign: 'center'
-#             valign: 'middle'
-#
-#         MDLabel:
-#             text: 'Date'
-#             font_style: 'H6'
-#             bold: True
-#             size_hint_x: 1/3
-#             halign: 'center'
-#             valign: 'middle'
-#
-#
 from kivy.properties import StringProperty
 from kivy.lang import Builder
 from kivy.uix.boxlayout import BoxLayout
@@ -38,6 +5,7 @@ from kivymd.uix.label import MDLabel
 from kivymd.uix.fitimage.fitimage import FitImage
 from kivymd.uix.card import MDCard
 from kivy.app import App
+from kivy.utils import platform
 
 Builder.load_string(
     """
@@ -45,7 +13,6 @@ Builder.load_string(
     orientation: 'vertical'
     spacing: '10dp'
     padding: '10dp'
-
     
     RecycleView:
         id: recycle_view
@@ -76,10 +43,13 @@ class HistoryScreen(BoxLayout):
         return self.ids.recycle_view.data
 
     def set_data(self, L: list):
+        path = ""
+        if platform == "android":
+            path = f"{App.get_running_app().user_data_dir}/"
         data = [
             {
                 "result": f"Iris to Pupil Ratio:\n{row[2]}",
-                "image_path": f"{App.get_running_app().user_data_dir}/{row[1]}",
+                "image_path": f"{path}{row[1]}",
                 "date": f"Saved on:\n{row[3]}",
             }
             for row in L
@@ -130,12 +100,11 @@ class HistoryItem(MDCard):
         self.bind(result=self.update_result)
         self.bind(date=self.update_date)
 
-    def update_image(self, instance, value):
+    def update_image(self, _, value):
         self.image.source = value
 
-    def update_result(self, instance, value):
+    def update_result(self, _, value):
         self.result_label.text = value
 
-    def update_date(self, instance, value):
+    def update_date(self, _, value):
         self.date_label.text = value
-
