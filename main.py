@@ -44,7 +44,7 @@ class IrisDetector(MDApp):
             internal_path = DBManager.get_storage_path()
             full_image_path = os.path.join(internal_path, filename)
             db_path = DBManager.get_db_path()
-            result = self.resultLabel
+            result = self.resultLabel.get_result()
             if self.currentScreen == "take_picture":
                 result = self.cameraResultFrame
             DBManager.insert_image(db_path, filename, result)
@@ -274,11 +274,11 @@ class IrisDetector(MDApp):
 
     def reset_selection(self, instance):
         if self.currentScreen == "select_picture":
-            if self.resultLabel.get_text() != "":
+            if self.resultLabel.get_result() != "":
                 self.selectPictureScreen.reset_screen()
                 self.resultLabel.clear_result()
         if self.currentScreen == "take_picture":
-            if self.cameraResultFrame and self.cameraResultFrame.get_text() != "":
+            if self.cameraResultFrame and self.cameraResultFrame.get_result() != "":
                 if self.cameraPlaceholder:
                     self.cameraPlaceholder.clear_widgets()
                     self.cameraPlaceholder.add_widget(self.preview)

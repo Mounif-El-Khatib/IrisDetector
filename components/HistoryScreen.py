@@ -48,7 +48,7 @@ class HistoryScreen(BoxLayout):
             path = f"{App.get_running_app().user_data_dir}/"
         data = [
             {
-                "result": f"Iris to Pupil Ratio:\n{row[2]}",
+                "result": f"{row[2]}",
                 "image_path": f"{path}{row[1]}",
                 "date": f"Saved on:\n{row[3]}",
             }

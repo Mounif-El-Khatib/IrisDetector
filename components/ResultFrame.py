@@ -22,6 +22,7 @@ class ResultFrame(MDCard):
 
         self.boxlayout.add_widget(self.label)
         self.boxlayout.add_widget(self.result)
+        self.md_bg_color = (0, 0, 0, 0)
 
         self.add_widget(self.boxlayout)
 
@@ -31,11 +32,13 @@ class ResultFrame(MDCard):
         self.label.text = "Result:"
         self.radius = [8]
         self.line_color = Colors.LIGHT_GRAY.value
+        self.md_bg_color = Colors.CRISP_WHITE.value
 
     def clear_result(self):
         self.result.text = ""
         self.label.text = ""
         self.line_color = (0, 0, 0, 0)
+        self.md_bg_color = (0, 0, 0, 0)
 
     def get_result(self):
         return self.result.text

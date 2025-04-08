@@ -34,9 +34,9 @@ class SelectPictureScreen(BoxLayout):
             padding=(30, 60, 30, 60),
         )
         self.infoText = MDLabel(
-            text="Select an image to process", font_style="H4", halign="center"
+            text="Select image to process", font_style="H4", halign="center"
         )
-
+        self.infoText.color = Colors.COOL_GRAY.value
         self.mdcard = MD3Card(callback=on_click)
         self.mdcard.add_widget(self.infoText)
         self.placeholder.add_widget(self.mdcard)
