@@ -1,7 +1,10 @@
+from camera4kivy.preview import AnchorLayout
 from kivymd.app import MDApp
 from kivymd.uix.toolbar import MDTopAppBar
 from kivymd.uix.bottomnavigation import MDBottomNavigation, MDBottomNavigationItem
-from kivymd.uix.button import MDRaisedButton
+from kivymd.uix.button import (
+    MDIconButton,
+)
 from kivy.graphics.texture import Texture
 from IrisDetector import process_frame
 from jnius import autoclass
@@ -21,23 +24,37 @@ from colors import Colors
 from components.ResultFrame import ResultFrame
 from components.SelectPictureScreen import SelectPictureScreen
 import os
+from components.Snackbar import AppSnackbar
 from dbManager import DBManager
 import datetime
 
 
 class IrisDetector(MDApp):
 
-    def __init__(self, **kwargs):
+    def __init__(self):
         super().__init__()
         self.cameraScreen = None
+        self.camera_screen_saved = False
+        self.select_picture_saved = False
 
-    def save_result(self, instance):
+    def result_exists(self):
+        exists = False
         if (
             self.resultLabel
             and self.resultLabel.get_result() != ""
             or self.cameraResultFrame
             and self.cameraResultFrame.get_result() != ""
-        ):  # Make sure result exists
+        ):
+            exists = True
+        return exists
+
+    def save_result(self, _):
+        if self.result_exists():
+            if self.select_picture_saved or self.camera_screen_saved:
+                self.snackbar.close()
+                self.snackbar = AppSnackbar(text="Image already saved, choose another.")
+                self.snackbar.open()
+                return
             date = datetime.datetime.now()
             timestamp = date.strftime("%Y%m%d_%H%M%S")
             filename = f"image_{timestamp}.png"
@@ -48,10 +65,15 @@ class IrisDetector(MDApp):
             if self.currentScreen == "take_picture":
                 result = self.cameraResultFrame
             DBManager.insert_image(db_path, filename, result)
+            self.snackbar = AppSnackbar(text="Image saved.")
             if self.currentScreen == "take_picture" and self.cameraPictureFrame:
                 self.cameraPictureFrame.export_as_image().save(full_image_path)
+                self.camera_screen_saved = True
+                self.snackbar.open()
             elif self.currentScreen == "select_picture" and self.pictureFrame:
                 self.pictureFrame.export_as_image().save(full_image_path)
+                self.select_picture_saved = True
+                self.snackbar.open()
 
     def display_result(self, texture, result):
         if self.currentScreen == "take_picture":
@@ -168,18 +190,23 @@ class IrisDetector(MDApp):
             request_permissions([Permission.CAMERA, Permission.WRITE_EXTERNAL_STORAGE])
         if self.preview is None:
             self.preview = CameraFrame(aspect_ratio="4:3")
-            self.preview.bind(on_texture_available=self.update_ui_with_texture)
             if self.cameraPlaceholder is not None:
                 self.cameraPlaceholder.add_widget(self.preview)
                 self.preview.connect_camera(
                     sensor_resolution=(2048, 1536),
                     enable_video=False,
                     enable_analyze_pixels=True,
+                    filepath_callback=self.get_path,
                 )
 
+    def get_path(self, path):
+        self.handle_selection(path)
+        print(path)
+
     def take_picture(self, path):
-        if self.preview is not None:
-            self.preview.capture()
+        self.preview.capture_photo()
+        print(path)
+        print("taken")
 
     def update_ui_with_texture(self, instance, texture):
         def update_texture(dt):
@@ -255,9 +282,13 @@ class IrisDetector(MDApp):
         )
         self.cameraResultFrame = ResultFrame()
         self.cameraPlaceholder = MDAnchorLayout()
-        captureButton = MDRaisedButton(on_release=self.take_picture)
+        centered_button_layout = AnchorLayout(size_hint=(1, 0.1))
+        captureButton = MDIconButton(
+            on_release=self.take_picture, icon="circle-slice-8", icon_size="40dp"
+        )
+        centered_button_layout.add_widget(captureButton)
         self.cameraScreen.add_widget(self.cameraPlaceholder)
-        self.cameraScreen.add_widget(captureButton)
+        self.cameraScreen.add_widget(centered_button_layout)
         self.cameraScreen.add_widget(self.cameraResultFrame)
         return self.cameraScreen
 
@@ -269,20 +300,19 @@ class IrisDetector(MDApp):
         box_layout.add_widget(self.historyScreen)
         return box_layout
 
-    def print_curr_screen(self, instance):
-        print(self.currentScreen)
-
-    def reset_selection(self, instance):
+    def reset_selection(self, _):
         if self.currentScreen == "select_picture":
             if self.resultLabel.get_result() != "":
                 self.selectPictureScreen.reset_screen()
                 self.resultLabel.clear_result()
+                self.select_picture_saved = False
         if self.currentScreen == "take_picture":
             if self.cameraResultFrame and self.cameraResultFrame.get_result() != "":
                 if self.cameraPlaceholder:
                     self.cameraPlaceholder.clear_widgets()
                     self.cameraPlaceholder.add_widget(self.preview)
                     self.cameraResultFrame.clear_result()
+                    self.camera_screen_saved = False
 
     def select_picture_screen(self, instance):
         self.currentScreen = "select_picture"
@@ -300,7 +330,6 @@ class IrisDetector(MDApp):
         path = DBManager.get_db_path()
         data = DBManager.get_saved_data(path)
         self.historyScreen.set_data(data)
-        print(data)
 
     def build(self):
         self.cameraScreen = None

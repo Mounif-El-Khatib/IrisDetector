@@ -60,7 +60,7 @@ class DBManager:
     @staticmethod
     def get_storage_path():
         if platform == "android":
-            from android.storage import app_storage_path # type: ignore
+            from android.storage import app_storage_path  # type: ignore
             from jnius import autoclass
 
             context = autoclass("org.kivy.android.PythonActivity").mActivity
