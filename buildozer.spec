@@ -35,7 +35,7 @@ orientation = portrait
 
 #
 # author = © Copyright Info
-
+android.theme = @style/Theme.MaterialComponents.DayNight.DarkActionBar
 # change the major version of python used by the app
 osx.python_version = 3
 
@@ -175,7 +175,7 @@ android.ndk_path = /home/mk/.buildozer/android/platform/android-ndk-r25b
 #android.add_resources =
 
 # (list) Gradle dependencies to add
-#android.gradle_dependencies =
+android.gradle_dependencies = com.google.android.material:material:1.4.0, androidx.appcompat:appcompat:1.4.0
 
 # (bool) Enable AndroidX support. Enable when 'android.gradle_dependencies'
 # contains an 'androidx' package, or any package from Kotlin source.

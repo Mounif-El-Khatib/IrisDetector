@@ -1,21 +1,37 @@
-from kivymd.uix.label import MDLabel
-from kivymd.uix.snackbar import Snackbar
-from kivy.metrics import dp
+from kivy.utils import platform
 
 
-class AppSnackbar:
-    def __init__(self, **kwargs):
-        text = kwargs.get("text")
-        self.snackbar = Snackbar(
-            MDLabel(text=text, size_hint_x=1),
-            y=dp(24),
-            pos_hint={"center_x": 0.5},
-            size_hint_x=0.5,
-        )
+class Snackbar:
 
-    def open(self):
-        self.snackbar.open()
+    def __init__(self):
+        self.toast = None
+        if platform == "android":
+            try:
+                from jnius import autoclass
 
-    def close(self):
-        if self.snackbar:
-            self.snackbar.dismiss()
+                self.PythonActivity = autoclass("org.kivy.android.PythonActivity")
+                self.Toast = autoclass("android.widget.Toast")
+                self.String = autoclass("java.lang.String")
+            except Exception as e:
+                print(f"Error initializing Toast: {e}")
+
+    def show(self, message, duration="short"):
+        if platform == "android" and self.Toast:
+            try:
+                context = self.PythonActivity.mActivity
+                java_message = self.String(str(message))
+
+                length = (
+                    self.Toast.LENGTH_SHORT
+                    if duration == "short"
+                    else self.Toast.LENGTH_LONG
+                )
+
+                def show_toast():
+                    self.toast = self.Toast.makeText(context, java_message, length)
+                    self.toast.show()
+
+                context.runOnUiThread(show_toast)
+
+            except Exception as e:
+                print(f"Error showing Toast: {e}")
